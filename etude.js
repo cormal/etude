@@ -1291,6 +1291,9 @@ function toggleMeasureDebug() {
 function openLibraryDialog() {
     const dialog = document.getElementById('libraryDialog');
     dialog.style.display = 'flex';
+    
+    // Automatically load library list when dialog opens
+    loadLibraryList();
 }
 
 function closeLibraryDialog() {
@@ -1303,9 +1306,15 @@ async function loadLibraryList() {
     const fileListDiv = document.getElementById('libraryFileList');
     const browseBtn = document.getElementById('btnBrowseLibrary');
     
+    // If already loaded, just show the list
+    if (fileListDiv.innerHTML !== '' && fileListDiv.style.display === 'block') {
+        return;
+    }
+    
     try {
         statusDiv.textContent = "Loading library...";
         browseBtn.disabled = true;
+        browseBtn.style.opacity = '0.5';
         
         // GitHub API endpoint for the repository contents
         const apiUrl = 'https://api.github.com/repos/musetrainer/library/contents/scores';
@@ -1325,6 +1334,8 @@ async function loadLibraryList() {
         
         if (musicFiles.length === 0) {
             statusDiv.textContent = "No MusicXML files found in library";
+            browseBtn.disabled = false;
+            browseBtn.style.opacity = '1';
             return;
         }
         
@@ -1338,16 +1349,16 @@ async function loadLibraryList() {
         
         musicFiles.forEach(file => {
             const fileItem = document.createElement('div');
-            fileItem.style.cssText = 'padding: 12px 15px; margin: 6px 0; background: #434c5e; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: #eceff4; font-size: 14px; border: 1px solid transparent;';
+            fileItem.style.cssText = 'padding: 12px 15px; margin: 6px 0; background: #2a2a30; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: #d1d1d1; font-size: 14px; border: 1px solid transparent;';
             fileItem.textContent = '🎼 ' + file.name.replace(/\.(xml|musicxml|mxl)$/, '');
             
             fileItem.onmouseover = () => {
-                fileItem.style.background = '#4c566a';
-                fileItem.style.borderColor = '#88c0d0';
+                fileItem.style.background = '#35353d';
+                fileItem.style.borderColor = '#c2a878';
                 fileItem.style.transform = 'translateX(5px)';
             };
             fileItem.onmouseout = () => {
-                fileItem.style.background = '#434c5e';
+                fileItem.style.background = '#2a2a30';
                 fileItem.style.borderColor = 'transparent';
                 fileItem.style.transform = 'translateX(0)';
             };
@@ -1363,6 +1374,7 @@ async function loadLibraryList() {
         statusDiv.textContent = "Error loading library: " + error.message;
         console.error("Full error:", error);
         browseBtn.disabled = false;
+        browseBtn.style.opacity = '1';
     }
 }
 
