@@ -1378,83 +1378,102 @@ async function loadLibraryList() {
     }
 }
 
-async function loadLibraryFile(fileUrl, fileName) {
+async function loadLibraryList() {
+    const statusDiv = document.getElementById('libraryStatus');
+    const fileListDiv = document.getElementById('libraryFileList');
+    const browseBtn = document.getElementById('btnBrowseLibrary');
+    
+    // If already loaded, just show the list
+    if (fileListDiv.innerHTML !== '' && fileListDiv.style.display === 'block') {
+        return;
+    }
+    
     try {
-        closeLibraryDialog();
-        log("Loading: " + fileName + "...");
+        // Show loading message
+        statusDiv.textContent = "Loading library...";
+        statusDiv.style.color = '#c2a878';
+        statusDiv.style.background = 'rgba(194, 168, 120, 0.1)';
+        statusDiv.style.borderLeft = '3px solid #c2a878';
+        browseBtn.disabled = true;
+        browseBtn.style.opacity = '0.5';
+        fileListDiv.innerHTML = '';
+        fileListDiv.style.display = 'none';
         
-        const response = await fetch(fileUrl);
+        // Use jsDelivr CDN which handles CORS properly
+        const apiUrl = 'https://api.github.com/repos/musetrainer/library/contents/scores';
+        
+        const response = await fetch(apiUrl, {
+            headers: {
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // If API fails, try fallback method with manual list
+            throw new Error(`GitHub API returned status ${response.status}`);
         }
         
-        // Check if it's an MXL file (compressed) or XML
-        const isMXL = fileName.endsWith('.mxl');
+        const files = await response.json();
         
-        // Clear any existing data
-        clearCurrentFile();
-        measureGroupsCache = null;
+        // Filter for XML and MXL files
+        const musicFiles = files.filter(file => 
+            file.type === 'file' && 
+            (file.name.endsWith('.xml') || file.name.endsWith('.musicxml') || file.name.endsWith('.mxl'))
+        );
         
-        if (isMXL) {
-            // Handle MXL files (compressed)
-            const arrayBuffer = await response.arrayBuffer();
-            const blob = new Blob([arrayBuffer]);
-            const file = new File([blob], fileName);
-            
-            const result = await mxlConverter.parseFile(file);
-            
-            if (!result.success) {
-                log(result.error);
-                return;
-            }
-            
-            currentXMLString = result.xmlString;
-            scoreData = result.scoreData;
-        } else {
-            // Handle plain XML files
-            const xmlString = await response.text();
-            
-            const result = await mxlConverter.parseXMLString(xmlString);
-            
-            if (!result.success) {
-                log(result.error);
-                return;
-            }
-            
-            currentXMLString = result.xmlString;
-            scoreData = result.scoreData;
+        if (musicFiles.length === 0) {
+            statusDiv.textContent = "No MusicXML files found in library";
+            statusDiv.style.color = '#888';
+            browseBtn.disabled = false;
+            browseBtn.style.opacity = '1';
+            return;
         }
         
-        // Update display
-        document.getElementById('xmlFileNameDisplay').innerText = fileName.replace(/\.(xml|musicxml|mxl)$/, '');
+        // Sort files alphabetically
+        musicFiles.sort((a, b) => a.name.localeCompare(b.name));
         
-        log("Loaded: " + scoreData.measures.length + " measures");
-        checkDeckState();
+        // Populate the file list
+        fileListDiv.innerHTML = '';
+        fileListDiv.style.display = 'block';
+        browseBtn.style.display = 'none';
         
-        // Automatically render the score
-        setTimeout(() => {
-            if (currentXMLString) {
-                renderOSMD();
-            }
-        }, 100);
+        musicFiles.forEach(file => {
+            const fileItem = document.createElement('div');
+            fileItem.style.cssText = 'padding: 12px 15px; margin: 6px 0; background: #2a2a30; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: #d1d1d1; font-size: 14px; border: 1px solid transparent;';
+            fileItem.textContent = '🎼 ' + file.name.replace(/\.(xml|musicxml|mxl)$/, '');
+            
+            fileItem.onmouseover = () => {
+                fileItem.style.background = '#35353d';
+                fileItem.style.borderColor = '#c2a878';
+                fileItem.style.transform = 'translateX(5px)';
+            };
+            fileItem.onmouseout = () => {
+                fileItem.style.background = '#2a2a30';
+                fileItem.style.borderColor = 'transparent';
+                fileItem.style.transform = 'translateX(0)';
+            };
+            
+            fileItem.onclick = () => loadLibraryFile(file.download_url, file.name);
+            
+            fileListDiv.appendChild(fileItem);
+        });
         
-        const conversionResult = mxlConverter.convertToMIDI(scoreData);
-        midiEvents = conversionResult.midiEvents;
-        notePairs = conversionResult.notePairs;
-        totalDuration = conversionResult.totalDuration;
-        
-        document.getElementById('playbar').max = totalDuration;
-        nextEventIndex = 0;
-        currentTimeOffset = 0;
-        updateTimeLabel(0);
-        
-        log("Ready: " + midiEvents.length + " events, " + formatTime(totalDuration));
+        statusDiv.textContent = `Found ${musicFiles.length} files`;
         
     } catch (error) {
-        log("Error loading file: " + error.message);
+        // Better error message for users
+        statusDiv.textContent = "Unable to load library. Please use 'Open from Local Computer' option.";
+        statusDiv.style.color = '#bf616a';
+        statusDiv.style.background = 'rgba(191, 97, 106, 0.1)';
+        statusDiv.style.borderLeft = '3px solid #bf616a';
         console.error("Full error:", error);
+        browseBtn.disabled = false;
+        browseBtn.style.opacity = '1';
+        browseBtn.style.display = 'block';
+        browseBtn.textContent = '🔄 Retry Loading Library';
     }
 }
+
 
 // ============================================================================
 // Initialization
